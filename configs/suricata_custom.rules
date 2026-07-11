@@ -1,0 +1,21 @@
+To catch nmap SYN scans that fall below ET threshold rules:
+
+alert tcp any any -> $HOME_NET any (
+    msg:"HOMELAB Custom: Possible nmap SYN scan";
+    flags:S;
+    threshold:type both, track by_src, count 20, seconds 3;
+    classtype:attempted-recon;
+    sid:9000001;
+    rev:1;
+)
+
+
+Custom SSH brute force rule for volume-based detection:
+
+alert tcp any any -> $HOME_NET 22 (
+    msg:"CUSTOM SSH Brute Force Attempt";
+    flow:to_server;
+    threshold:type both, track by_src, count 10, seconds 60;
+    sid:9999997;
+    rev:1;
+)
