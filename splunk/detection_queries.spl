@@ -1,0 +1,50 @@
+pfSense filterlog format (comma-separated positional fields):
+
+filterlog[PID]: rule,sub,anchor,tracker,iface,reason,action,
+direction,ip_version,tos,ecn,ttl,id,offset,flags,proto_id,
+proto,length,src_ip,dst_ip,src_port,dst_port,...
+
+All queries use string matching on the known IP pair before regex
+extraction, which works reliably with pfSense filterlog format.
+
+All traffic from Kali
+
+index=pfsense "192.168.100.14"
+| table _time, _raw
+| sort -_time
+
+SSH brute force - connection count per minute to port 22
+
+index=pfsense "192.168.100.14,192.168.100.1" ",22,"
+| bin _time span=1m
+| stats count by _time
+| sort -_time
+
+Web scan - connection count per minute to port 80
+
+index=pfsense "192.168.100.14,192.168.100.1" ",80,"
+| bin _time span=1m
+| stats count by _time
+| sort -_time
+
+Port scan - unique ports touched per minute (catches slow scans)
+
+index=pfsense "192.168.100.14,192.168.100.1"
+| rex field=_raw ",tcp,\d+,192\.168\.100\.14,192\.168\.100\.1,\d+,(?P<dst_port>\d+),"
+| where isnotnull(dst_port)
+| bin _time span=1m
+| stats dc(dst_port) as unique_ports, count by _time
+| sort -_time
+
+Master threat timeline with automated scoring
+
+index=pfsense "192.168.100.14,192.168.100.1"
+| rex field=_raw ",(?:tcp|udp),\d+,192\.168\.100\.14,192\.168\.100\.1,\d+,(?P<dst_port>\d+),"
+| bin _time span=1m
+| stats count as total_connections,
+        dc(dst_port) as unique_ports_scanned by _time
+| eval threat_level=case(
+    unique_ports_scanned > 20, "HIGH - possible port scan",
+    total_connections > 50,    "MEDIUM - high connection rate",
+    true(),                    "LOW - normal")
+| sort -_time
